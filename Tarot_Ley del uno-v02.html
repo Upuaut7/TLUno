@@ -1,0 +1,722 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Tarot de la Ley del Uno (con API de Google)</title>
+    <style>
+        body {
+            font-family: 'Arial', sans-serif;
+            background: linear-gradient(45deg, #1a1a1a, #2c003e);
+            color: #fff;
+            min-height: 100vh;
+            padding: 20px;
+            text-align: center;
+            margin: 0;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+
+        .container {
+            max-width: 800px;
+            width: 90%;
+            margin: 0 auto;
+        }
+
+        .botones {
+            margin: 20px 0;
+        }
+
+        button {
+            background: #4B0082;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            margin: 5px;
+            border-radius: 5px;
+            cursor: pointer;
+            transition: 0.3s;
+            font-size: 1rem;
+        }
+
+        button:hover {
+            background: #6A0DAD;
+            transform: scale(1.05);
+        }
+
+        #mazo {
+            display: none; /* Oculto inicialmente */
+            justify-content: center;
+            gap: 10px;
+            margin: 30px 0;
+            flex-wrap: wrap;
+        }
+
+        .carta {
+            width: 120px;
+            height: 180px;
+            border-radius: 10px;
+            border: 2px solid gold;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            transition: 0.3s;
+            background-size: cover;
+            font-size: 0.8rem;
+        }
+
+        .carta.boca-abajo {
+            background: linear-gradient(45deg, #2c003e, #4B0082);
+            color: transparent;
+        }
+
+        #cartas-sacadas {
+            display: flex;
+            justify-content: center;
+            gap: 20px;
+            margin-bottom: 20px;
+            flex-wrap: wrap;
+        }
+
+        .interpretacion {
+            background: rgba(0, 0, 0, 0.7);
+            padding: 20px;
+            border-radius: 10px;
+            margin-top: 20px;
+            display: none; /* Oculto inicialmente */
+            width: 90%;
+            max-width: 700px;
+            text-align: left;
+        }
+
+        .triada{
+            display: flex;
+            justify-content: space-around;
+            flex-wrap: wrap;
+        }
+
+        .arquetipo{
+            margin-bottom: 1rem;
+        }
+
+        .relaciones {
+            margin-top: 1.5rem;
+            border-top: 1px solid gold;
+            padding-top: 1rem;
+        }
+
+        .loco {
+            margin-top: 1.5rem;
+            border-top: 1px solid #ccc;
+            padding-top: 1rem;
+            font-style: italic;
+        }
+
+        h1 {
+            font-size: 2rem;
+            margin-bottom: 1rem;
+        }
+
+        h3 {
+            font-size: 1.5rem;
+            margin-bottom: 1rem;
+            color: gold;
+        }
+
+        h4 {
+            font-size: 1.2rem;
+            margin-bottom: 0.5rem;
+        }
+
+        p {
+            font-size: 1rem;
+            line-height: 1.4;
+        }
+
+        small{
+            font-size: 0.9rem;
+        }
+
+        #cargando {
+            display: none;
+            margin-top: 20px;
+            color: gold;
+            font-style: italic;
+        }
+      #conversacion {
+            display: none; /* Oculto inicialmente */
+        }
+        #entrada-usuario{
+            width: 95%;
+            margin: 0.5rem;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Tarot de la Ley del Uno (con API de Google)</h1>
+        <div class="botones">
+            <button onclick="iniciarTirada()">Iniciar Tirada</button>
+            <button onclick="barajar()" id="btnBarajar" disabled>Barajar</button>
+            <button onclick="sacarCartas()" id="btnSacar" disabled>Sacar Cartas</button>
+        </div>
+        <p id="mensaje"></p>
+        <div id="pregunta-consultante"></div>
+        <div id="mazo"></div>
+        <div id="cartas-sacadas"></div>
+        <div id="cargando">Interpretando...</div>
+        <div id="interpretacion" class="interpretacion"></div>
+        <div id="conversacion">
+            <textarea id="entrada-usuario" rows="4" cols="50" placeholder="Escribe tu pregunta o comentario aquí..."></textarea><br>
+            <button onclick="enviarPreguntaUsuario()">Enviar</button>
+        </div>
+    </div>
+
+    <script>
+        // Arquetipos (MUY AMPLIADO) - Información extraída de las Sesiones 76-82
+        const ARCANOS = [
+            // MENTE
+            {
+                nombre: 'El Mago',
+                grupo: 'Mente',
+                significado: 'Voluntad consciente, la Matriz de la Mente.',
+                descripcionRa: 'La Matriz de la Mente. Representa el principio masculino de la creación consciente, la voluntad que se alinea con el infinito. Es el "Mago" que se conoce a sí mismo.',
+                citaRa: [
+                    '"La Matriz es el principio masculino de la creación consciente" (Sesión 81.6)',
+                    '"El Mago es la conciencia creando realidad" (Sesión 81)'
+                ],
+                sesiones: [78, 81]
+            },
+            {
+                nombre: 'La Sacerdotisa',
+                grupo: 'Mente',
+                significado: 'Intuición, el Potenciador de la Mente.',
+                descripcionRa: 'El Potenciador de la Mente. Representa el inconsciente colectivo, el acceso a la sabiduría oculta más allá del velo. Es la contraparte femenina del Mago.',
+                citaRa: [
+                    '"El Potenciador del Espíritu contiene el misterio del infinito" (Sesión 82.3)',
+                    '"La Sacerdotisa es el acceso al conocimiento infinito" (Sesión 81)'
+                ],
+                sesiones: [78, 82]
+            },
+            {
+                nombre: 'La Emperatriz',
+                grupo: 'Mente',
+                significado: 'Creatividad, el Catalizador de la Mente.',
+                descripcionRa: 'El Catalizador de la Mente. Representa la creatividad divina, el principio femenino que gesta las ideas.  Es la acción de la intuición sobre la voluntad.',
+                citaRa: [
+                    '"Catalizador de la Mente - Creatividad divina" (Sesión 78)'
+                ],
+                sesiones: [78]
+            },
+            {
+                nombre: 'El Emperador',
+                grupo: 'Mente',
+                significado: 'Estructura, la Experiencia de la Mente.',
+                descripcionRa: 'La Experiencia de la Mente.  Representa la estructura material, el orden y las reglas que dan forma a la experiencia.  Es el resultado de la voluntad actuando.',
+                citaRa: [
+                    '"Experiencia de la Mente - Estructura material" (Sesión 78)'
+                ],
+                sesiones: [78]
+            },
+            {
+                nombre: 'El Hierofante',
+                grupo: 'Mente',
+                significado: 'Creencias, el Significante de la Mente.',
+                descripcionRa: 'El Significante de la Mente. Representa los sistemas de creencias, la tradición sagrada y las estructuras de pensamiento que dan significado a la experiencia.',
+                citaRa: [
+                    '"Significante de la Mente - Sistema de creencias" (Sesión 80)'
+                ],
+                sesiones: [80]
+            },
+            {
+                nombre: 'Los Enamorados',
+                grupo: 'Mente',
+                significado: 'Elección, la Transformación de la Mente.',
+                descripcionRa: 'La Transformación de la Mente. Representa la elección ética, el amor incondicional y la integración de los opuestos.  Es el punto de decisión.',
+                citaRa: [
+                    '"Transformación de la Mente - Elección ética" (Sesión 78)'
+                ],
+                sesiones: [78]
+            },
+            {
+                nombre: 'El Carro',
+                grupo: 'Mente',
+                significado: 'Dirección, la Vía de la Mente.',
+                descripcionRa: 'La Vía de la Mente. Representa el control de fuerzas opuestas, la dirección consciente del yo y la voluntad en acción.  Es el camino elegido.',
+                citaRa: [
+                    '"Vía de la Mente - Dirección consciente" (Sesión 78)'
+                ],
+                sesiones: [78]
+            },
+
+            // CUERPO
+            {
+                nombre: 'La Justicia',
+                grupo: 'Cuerpo',
+                significado: 'Equilibrio, la Matriz del Cuerpo.',
+                descripcionRa: 'La Matriz del Cuerpo. Representa la ley cósmica, el equilibrio kármico y las consecuencias de las acciones.  Es la base de la experiencia física.',
+                citaRa: [
+                    '"Matriz del Cuerpo - Ley cósmica" (Sesión 77)'
+                ],
+                sesiones: [77]
+            },
+            {
+                nombre: 'El Ermitaño',
+                grupo: 'Cuerpo',
+                significado: 'Sabiduría interior, el Potenciador del Cuerpo.',
+                descripcionRa: 'El Potenciador del Cuerpo.  Representa la sabiduría interior, la búsqueda de la verdad en la soledad y la introspección.  Es la guía interna.',
+                citaRa: [
+                    '"Potenciador del Cuerpo - Sabiduría interior" (Sesión 77)'
+                ],
+                sesiones: [77]
+            },
+            {
+                nombre: 'La Rueda de la Fortuna',
+                grupo: 'Cuerpo',
+                significado: 'Destino, el Catalizador del Cuerpo.',
+                descripcionRa: 'El Catalizador del Cuerpo. Representa los ciclos cósmicos, el movimiento del destino y los eventos que impulsan el crecimiento.  Es el cambio inevitable.',
+                citaRa: [
+                    '"Catalizador del Cuerpo - Ciclos del destino" (Sesión 77)'
+                ],
+                sesiones: [77]
+            },
+            {
+                nombre: 'La Fuerza',
+                grupo: 'Cuerpo',
+                significado: 'Dominio, la Experiencia del Cuerpo.',
+                descripcionRa: 'La Experiencia del Cuerpo. Representa el dominio energético, el poder del amor sobre los instintos y la fuerza interior.  Es la compasión.',
+                citaRa: [
+                    '"Experiencia del Cuerpo - Dominio energético" (Sesión 77)'
+                ],
+                sesiones: [77]
+            },
+            {
+                nombre: 'El Colgado',
+                grupo: 'Cuerpo',
+                significado: 'Perspectiva, la Transformación del Cuerpo.',
+                descripcionRa: 'La Transformación del Cuerpo.  Representa el cambio de perspectiva, el sacrificio consciente y la renuncia a lo viejo para dar paso a lo nuevo.',
+                citaRa: [
+                    '"Transformación del Cuerpo - Cambio de perspectiva" (Sesión 77)'
+                ],
+                sesiones: [77]
+            },
+            {
+                nombre: 'La Muerte',
+                grupo: 'Cuerpo',
+                significado: 'Renacimiento, la Vía del Cuerpo.',
+                descripcionRa: 'La Vía del Cuerpo. Representa el renacimiento, la transformación necesaria y la muerte del ego.  Es el final de un ciclo y el comienzo de otro.',
+                citaRa: [
+                    '"Vía del Cuerpo - Renacimiento" (Sesión 77)'
+                ],
+                sesiones: [77]
+            },
+            {
+                nombre: 'La Templanza',
+                grupo: 'Cuerpo',
+                significado: 'Integración, el Significante del Cuerpo.',
+                descripcionRa: 'El Significante del Cuerpo. Representa la alquimia cósmica, la integración de los opuestos y el equilibrio.  Es la armonía.',
+                citaRa: [
+                    '"Significante del Cuerpo - Alquimia cósmica" (Sesión 77)'
+                ],
+                sesiones: [77]
+            },
+
+            // ESPÍRITU
+            {
+                nombre: 'El Diablo',
+                grupo: 'Espíritu',
+                significado: 'Ilusión, la Matriz del Espíritu.',
+                descripcionRa: 'La Matriz del Espíritu. Representa la ilusión de separación, las ataduras materiales y la oscuridad que oculta la luz.  Es la sombra.',
+                citaRa: [
+                    '"Matriz del Espíritu - Ilusión de separación" (Sesión 79)'
+                ],
+                sesiones: [79]
+            },
+            {
+                nombre: 'La Torre',
+                grupo: 'Espíritu',
+                significado: 'Revelación, el Potenciador del Espíritu.',
+                descripcionRa: 'El Potenciador del Espíritu. Representa la destrucción de las falsas estructuras, la revelación repentina y el despertar.  Es el relámpago.',
+                citaRa: [
+                    '"Potenciador del Espíritu - Destrucción de lo falso" (Sesión 79)'
+                ],
+                sesiones: [79]
+            },
+            {
+                nombre: 'La Estrella',
+                grupo: 'Espíritu',
+                significado: 'Fe, el Catalizador del Espíritu.',
+                descripcionRa: 'El Catalizador del Espíritu.  Representa la fe cósmica, la guía divina y la esperanza en el infinito.  Es la luz en la oscuridad.',
+                citaRa: [
+                    '"Catalizador del Espíritu - Fe cósmica" (Sesión 79)'
+                ],
+                sesiones: [79]
+            },
+             {
+                nombre: 'La Luna',
+                grupo: 'Espíritu',
+                significado: 'Pruebas, la Experiencia del Espíritu.',
+                descripcionRa: 'La Experiencia del Espíritu. Representa las pruebas del alma, el viaje a través del inconsciente y los desafíos que conducen al crecimiento.',
+                citaRa: [
+                     '"Experiencia del Espíritu - Pruebas del alma" (Sesión 79)'
+                 ],
+                sesiones: [79]
+            },
+            {
+                nombre: 'El Sol',
+                grupo: 'Espíritu',
+                significado: 'Iluminación, la Transformación del Espíritu.',
+                descripcionRa: 'La Transformación del Espíritu. Representa la iluminación, la verdad esencial y la claridad que disipa la oscuridad.  Es la conciencia.',
+                citaRa: [
+                    '"Transformación del Espíritu - Iluminación" (Sesión 79)'
+                ],
+                sesiones: [79]
+            },
+            {
+                nombre: 'El Juicio',
+                grupo: 'Espíritu',
+                significado: 'Despertar, la Vía del Espíritu.',
+                descripcionRa: 'La Vía del Espíritu.  Representa el llamado cósmico, el despertar de la memoria espiritual y la rendición de cuentas.  Es el llamado a la unidad.',
+                citaRa: [
+                    '"Vía del Espíritu - Llamado cósmico" (Sesión 79)'
+                ],
+                sesiones: [79]
+            },
+            {
+                nombre: 'El Mundo',
+                grupo: 'Espíritu',
+                significado: 'Unidad, el Significante del Espíritu.',
+                descripcionRa: 'El Significante del Espíritu. Representa la unidad lograda, la completitud del ser y la integración de todas las experiencias.  Es la totalidad.',
+                citaRa: [
+                    '"Significante del Espíritu - Unidad lograda" (Sesión 79)'
+                ],
+                sesiones: [79]
+            },
+
+            // INTEGRADOR
+            {
+                nombre: 'El Loco',
+                grupo: 'Integrador',
+                significado: 'Potencial infinito, el Viajero Eterno.',
+                descripcionRa: 'El Arquitecto del potencial infinito. Representa el principio y el fin, el caos creativo, la libertad absoluta y el viaje del alma a través de la experiencia.',
+                citaRa: [
+                    '"El Arquitecto de lo Imposible, que construye desde el vacío" (Sesión 82.12)',
+                    '"El Loco recuerda: Esta combinación [...] es una ilusión al servicio del aprendizaje" (Sesión 77)'
+                ],
+                sesiones: [77, 82]
+            }
+        ];
+
+        // RELACIONES ENTRE ARQUETIPOS (MUY AMPLIADO) - Basado en Sesiones 76, 77, 81
+        // Esto es un *ejemplo*, y se puede expandir *mucho* más.
+const RELACIONES_RA = {
+    // Mente -> Cuerpo (Sesión 77: Direccionalidad energética)
+    'El Mago-La Rueda de la Fortuna': 'La voluntad consciente (El Mago) debe aprender a fluir con los ciclos del destino (La Rueda). La acción individual se encuentra con las fuerzas externas.',
+    'La Sacerdotisa-El Ermitaño': 'La intuición (La Sacerdotisa) guía la búsqueda interior (El Ermitaño). El conocimiento oculto se revela en la soledad.',
+    'La Emperatriz-La Fuerza': 'La creatividad (La Emperatriz) se canaliza a través del dominio de los instintos (La Fuerza). La acción nutricia se combina con la compasión.',
+    'El Emperador-El Colgado': 'La estructura (El Emperador) se enfrenta a la necesidad de un cambio de perspectiva (El Colgado). El orden establecido se desafía.',
+    'El Hierofante-La Muerte': 'Las creencias (El Hierofante) se confrontan con la transformación (La Muerte). Los sistemas de pensamiento se renuevan.',
+    'Los Enamorados-La Templanza': 'La elección (Los Enamorados) conduce a la integración (La Templanza).  La decisión ética lleva al equilibrio.',
+    'El Carro-La Justicia': 'La voluntad (El Carro) se somete a la ley cósmica (La Justicia). La acción dirigida se enfrenta a las consecuencias.',
+
+    // Cuerpo -> Espíritu (Sesión 76: Catalizadores)
+    'La Justicia-El Diablo': 'El equilibrio kármico (La Justicia) revela las ataduras materiales (El Diablo). La ley de causa y efecto se manifiesta.',
+    'El Ermitaño-La Torre': 'La sabiduría interior (El Ermitaño) prepara para la destrucción de lo falso (La Torre). La introspección conduce a la revelación.',
+    'La Rueda de la Fortuna-La Estrella': 'Los ciclos del destino (La Rueda) traen esperanza (La Estrella). El cambio trae fe.',
+    'La Fuerza-La Luna': 'El dominio energético (La Fuerza) se enfrenta a las pruebas del alma (La Luna). La compasión se enfrenta a los miedos.',
+    'El Colgado-El Sol': 'El cambio de perspectiva (El Colgado) conduce a la iluminación (El Sol). El sacrificio trae claridad.',
+    'La Muerte-El Juicio': 'La transformación (La Muerte) es un llamado al despertar (El Juicio). El renacimiento es un llamado a la consciencia.',
+    'La Templanza-El Mundo': 'La integración (La Templanza) conduce a la unidad (El Mundo). El equilibrio lleva a la totalidad.',
+
+    // Espíritu -> Mente (Sesión 79: Influencia)
+    'El Diablo-El Mago': "La ilusión de la separación (El Diablo) desafía la voluntad del individuo(El Mago)",
+    'La Torre-La Sacerdotisa': "La destrucción de las viejas ideas, abre camino a la intuición(La Sacerdotisa)",
+    'La Estrella-La Emperatriz': "La Esperanza y la fé(La Estrella) alimentan la creatividad(La Emperatriz)",
+    'La Luna-El Emperador':"Las pruebas internas, fortalecen el poder de manifestar en el mundo(El Emperador)",
+    'El Sol-El Hierofante':"La verdad ilumina y da un nuevo significado a las creencias(El Hierofante)",
+    'El Juicio-Los Enamorados':"El llamado a despertar hace tomar decisiones importantes(Los Enamorados)",
+    'El Mundo-El Carro': "La sensación de unidad, da un proposito y una dirección a la vida(El Carro)",
+    // Combinaciones con El Loco (Sesión 82)
+    'El Loco-El Mago': 'El potencial infinito (El Loco) alimenta la voluntad consciente (El Mago). El viaje comienza con la intención.',
+    'El Loco-La Justicia': 'La libertad absoluta (El Loco) se encuentra con la ley cósmica (La Justicia). El caos se equilibra con el orden.',
+    // ... (Se pueden añadir *muchas* más combinaciones con El Loco) ...
+        };
+
+        let mazo = [];
+        let cartasSacadas = [];
+        let pregunta = ""; // Variable global para almacenar la pregunta inicial
+        let conversacion = []; //Historial de la conversacion
+
+       function iniciarTirada() {
+            // --- Primero, mostramos el mazo ---
+            renderizarMazo();
+            document.getElementById('mazo').style.display = 'flex';
+
+            // --- PEDIR LA PREGUNTA AL USUARIO ---
+            pregunta = prompt("¿Cuál es tu pregunta para el Tarot?");
+
+            // --- Manejar el caso en que el usuario no escriba nada ---
+            if (pregunta === null || pregunta.trim() === "") {
+                pregunta = "Pregunta general sobre la situación actual."; // Pregunta por defecto
+            }
+
+            // --- Mostrar la pregunta en la página ---
+            document.getElementById('pregunta-consultante').innerHTML = `<p><strong>Pregunta:</strong> ${pregunta}</p>`;
+
+            mazo = [...ARCANOS];  // ASEGÚRATE de que mazo se (re)inicializa aquí
+            cartasSacadas = [];
+            document.getElementById('btnBarajar').disabled = false;
+            document.getElementById('btnSacar').disabled = true;
+            document.getElementById('interpretacion').style.display = 'none';
+            document.getElementById('mensaje').textContent = 'Mazo listo. ¡Baraja!';
+            // Ya no es necesario llamar a renderizarMazo() aquí, lo hacemos al principio
+            document.getElementById('conversacion').style.display = 'none'; //Ocultamos conversacion
+        }
+
+
+        function barajar() {
+            for (let i = mazo.length - 1; i > 0; i--) {
+                const j = Math.floor(Math.random() * (i + 1));
+                [mazo[i], mazo[j]] = [mazo[j], mazo[i]];
+            }
+            document.getElementById('btnSacar').disabled = false;
+            document.getElementById('mensaje').textContent = '';
+            renderizarMazo(); // Para que se vea que baraja
+        }
+
+function sacarCartas() {
+    if (mazo.length < 3) return;
+
+    cartasSacadas = mazo.splice(0, 3);
+    renderizarMazo();          // Actualiza el mazo boca abajo (oculta las cartas no sacadas)
+    renderizarCartasSacadas(); // Muestra las cartas sacadas
+
+    // Mostrar el indicador de carga
+    document.getElementById('cargando').style.display = 'block';
+    // Deshabilitar el botón "Sacar Cartas" mientras se espera la respuesta
+    document.getElementById('btnSacar').disabled = true;
+    document.getElementById('conversacion').style.display = 'block'; //Mostramos conversacion
+
+    // Llamar a la función de interpretación *después* de mostrar las cartas
+    mostrarInterpretacion();
+}
+
+function renderizarMazo() {
+    const contenedor = document.getElementById('mazo');
+    contenedor.innerHTML = ''; //  *** ASEGÚRATE DE LIMPIAR ***
+    mazo.forEach((carta, index) => {
+        const div = document.createElement('div');
+        div.className = 'carta boca-abajo';
+        let simbolo = '';
+        if (carta.grupo === 'Mente') simbolo = '🧠';
+        else if (carta.grupo === 'Cuerpo') simbolo = '🌱';
+        else if (carta.grupo === 'Espíritu') simbolo = '✨';
+        else if (carta.grupo === 'Integrador') simbolo = '♾️';
+
+        div.innerHTML = `<small>${index + 1}</small><br>${simbolo}`;
+        contenedor.appendChild(div);
+    });
+}
+
+function renderizarCartasSacadas() {
+    const contenedor = document.getElementById('cartas-sacadas');
+    contenedor.innerHTML = ''; // *** ASEGÚRATE DE LIMPIAR ***
+
+    cartasSacadas.forEach(carta => {
+        const div = document.createElement('div');
+        div.className = 'carta'; // Usamos la clase 'carta', NO 'carta boca-abajo'
+
+        // --- AÑADIMOS MÁS INFORMACIÓN ---
+        let simbolo = '';
+        if (carta.grupo === 'Mente') simbolo = '🧠';
+        else if (carta.grupo === 'Cuerpo') simbolo = '🌱';
+        else if (carta.grupo === 'Espíritu') simbolo = '✨';
+        else if (carta.grupo === 'Integrador') simbolo = '♾️';
+
+        div.innerHTML = `
+            <h4>${carta.nombre} (${carta.grupo})</h4>
+            <p>${simbolo}</p>  <!-- Mostrar el símbolo -->
+        `; //  <-- SOLO NOMBRE, GRUPO Y SIMBOLO
+        // --- (Si tuvieras imágenes, aquí las añadirías) ---
+
+        contenedor.appendChild(div);
+    });
+}
+
+async function mostrarInterpretacion() {
+    const [mente, cuerpo, espiritu] = cartasSacadas;
+
+    // --- CONSTRUIR EL PROMPT INICIAL ---
+    const promptInicial = `
+Eres una maga gitana experta en el Tarot, con un profundo conocimiento de la Ley del Uno (especialmente el Libro IV).
+Interpreta la siguiente tirada de tres cartas *en relación con la pregunta del consultante*.
+Sé mística, profunda, usa metáforas elaboradas, y haz referencias a los conceptos de la Ley del Uno
+(mente/cuerpo/espíritu, arquetipos, el Loco como integrador, etc.). Cita textualmente fragmentos relevantes
+del Libro IV de la Ley del Uno siempre que sea posible.
+
+Pregunta del consultante:
+${pregunta}
+
+Las cartas son:
+
+*   Carta 1 (Mente): ${mente.nombre} - ${mente.descripcionRa}
+*   Carta 2 (Cuerpo): ${cuerpo.nombre} - ${cuerpo.descripcionRa}
+*   Carta 3 (Espíritu): ${espiritu.nombre} - ${espiritu.descripcionRa}
+
+Ofrece una interpretación que incluya:
+
+1.  **Análisis individual de cada carta:** Profundiza en el significado de cada carta
+    en el contexto de la Ley del Uno y de la pregunta del consultante. Usa citas relevantes si es posible.
+2.  **Relaciones entre las cartas:** Explica cómo interactúan las energías de las cartas
+    (Mente -> Cuerpo, Cuerpo -> Espíritu, Espíritu -> Mente). Usa la información de RELACIONES_RA
+    si es relevante, pero *expándela* con tu propia sabiduría mística.
+    Describe las interacciones en términos de los conceptos de la Ley del Uno.
+3.  **El Rol del Loco:** Siempre incluye una sección sobre cómo El Loco integra la tirada y
+    representa el viaje del alma, el potencial infinito y la paradoja de ser humano y espíritu a la vez.
+4.  **Consejo o Reflexión Final:** Ofrece una conclusión que resuma la lectura y ofrezca una guía o
+    reflexión, conectando la tirada con la búsqueda de la unidad y el servicio a los demás,
+    y *respondiendo directamente a la pregunta del consultante*.
+
+Responde en formato HTML:
+* Usa etiquetas <h3> para títulos principales.
+* Usa <h4> para títulos de sección (ej. "Carta 1: El Mago").
+* Usa <p> para los párrafos de texto.
+* Usa <em> para enfatizar palabras o frases clave.
+* Incluye saltos de línea (<br>) para mejorar la legibilidad.
+`;
+    conversacion.push({ role: "user", parts: [{ text: promptInicial }] }); // Iniciamos el historial
+    // --- HACER LA PETICIÓN A LA API DE GOOGLE (Generative Language API) ---
+    const apiKey = 'AIzaSyBEInEJP4491xocWdqS_H5p_xbEbLKbfFE'; //  ¡¡¡REEMPLAZA ESTO!!!
+    const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-pro-002:generateContent?key=${apiKey}`;
+
+    try {
+        const response = await fetch(url, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+                contents: conversacion, // Usamos el historial
+                generationConfig: {
+                    "maxOutputTokens": 2048,
+                    "temperature": 0.95,
+                    "topP": 0.95,
+                    "topK": 40
+                }
+            })
+        });
+
+        if (!response.ok) {
+            let errorText = await response.text();
+            throw new Error(`Error de la API: ${response.status} - ${errorText}`);
+        }
+
+        const data = await response.json();
+        let interpretacion = "";
+
+        // --- MANEJO DE LA RESPUESTA (Generative Language API) ---
+        if (data.candidates && data.candidates.length > 0 && data.candidates[0].content &&
+            data.candidates[0].content.parts && data.candidates[0].content.parts.length > 0)
+        {
+            interpretacion = data.candidates[0].content.parts[0].text;
+            conversacion.push({ role: "model", parts: [{ text: interpretacion }] }); //Añadimos al historial
+        }
+         else {
+            interpretacion = "<p>Error: No se pudo obtener una interpretación válida.</p>";
+            console.log("Respuesta de la API (fallida):", data); // LOG DE LA RESPUESTA
+        }
+
+        // --- AÑADIR (no reemplazar) la interpretación al historial ---
+        document.getElementById('interpretacion').innerHTML += interpretacion;
+        document.getElementById('interpretacion').style.display = 'block';
+
+    } catch (error) {
+        console.error('Error:', error);
+        document.getElementById('interpretacion').innerHTML += `<p>Error al obtener la interpretación: ${error.message}</p>`;
+        document.getElementById('interpretacion').style.display = 'block';
+    }
+     finally { //asegurarse que se oculte
+        document.getElementById('cargando').style.display = 'none';
+         document.getElementById('btnSacar').disabled = false;//Se reactiva el boton
+    }
+}
+// --- NUEVA FUNCIÓN: enviarPreguntaUsuario() ---
+async function enviarPreguntaUsuario() {
+    const preguntaUsuario = document.getElementById('entrada-usuario').value;
+
+    if (!preguntaUsuario || preguntaUsuario.trim() === "") {
+        alert("Por favor, escribe tu pregunta o comentario."); // Validación
+        return;
+    }
+
+    // Añadir la pregunta del usuario al historial de conversación (mostrado en la página)
+    document.getElementById('interpretacion').innerHTML += `<p><strong>Tú:</strong> ${preguntaUsuario}</p>`;
+
+    // Añadir la pregunta del usuario al historial para la API
+    conversacion.push({role: "user", parts: [{text: preguntaUsuario}]});
+
+    // Mostrar el indicador de carga
+    document.getElementById('cargando').style.display = 'block';
+
+     // --- HACER LA PETICIÓN A LA API DE GOOGLE (Generative Language API) ---
+    const apiKey = 'TU_CLAVE_DE_API_DE_GOOGLE_AQUÍ'; //  ¡¡¡REEMPLAZA ESTO!!!
+    const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-pro-002:generateContent?key=${apiKey}`;
+
+    try{
+        const response = await fetch(url, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+                contents: conversacion, // Usamos el historial
+                generationConfig: {
+                    "maxOutputTokens": 2048,
+                    "temperature": 0.95,
+                    "topP": 0.95,
+                    "topK": 40
+                }
+            })
+        });
+         if (!response.ok) {
+            let errorText = await response.text();
+            throw new Error(`Error de la API: ${response.status} - ${errorText}`);
+        }
+         const data = await response.json();
+        let interpretacion = "";
+
+                // --- MANEJO DE LA RESPUESTA (Generative Language API) ---
+        if (data.candidates && data.candidates.length > 0 && data.candidates[0].content &&
+            data.candidates[0].content.parts && data.candidates[0].content.parts.length > 0)
+        {
+            interpretacion = data.candidates[0].content.parts[0].text;
+            //Añadimos la respuesta al historial para la API
+            conversacion.push({ role: "model", parts: [{ text: interpretacion }] });
+        }
+         else {
+            interpretacion = "<p>Error: No se pudo obtener una interpretación válida.</p>";
+            console.log("Respuesta de la API (fallida):", data); // LOG DE LA RESPUESTA
+        }
+
+        // Añadir la respuesta de la API al historial de conversación
+        document.getElementById('interpretacion').innerHTML += interpretacion;
+
+        // Limpiar el área de texto
+        document.getElementById('entrada-usuario').value = '';
+
+    } catch (error) {
+        console.error('Error:', error);
+        document.getElementById('interpretacion').innerHTML += `<p>Error al obtener la interpretación: ${error.message}</p>`;
+
+    } finally {
+        // Ocultar el indicador de carga
+        document.getElementById('cargando').style.display = 'none';
+    }
+} //  <--  FIN de enviarPreguntaUsuario()
+
+    </script>  <!--  <--  CIERRE DE LA ETIQUETA SCRIPT (MUY IMPORTANTE) -->
+</body>
+</html>
+            
